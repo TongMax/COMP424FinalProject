@@ -226,6 +226,7 @@ class World:
                         cur_pos, next_pos, dir, self.max_step
                     )
                 )
+        #Input failed, random walk is executed
         except BaseException as e:
             ex_type = type(e).__name__
             if (
@@ -287,6 +288,8 @@ class World:
         """
         # Endpoint already has barrier or is boarder
         r, c = end_pos
+        # print(self.chess_board)
+        # print(self.chess_board[r, c, barrier_dir])
         if self.chess_board[r, c, barrier_dir]:
             return False
         if np.array_equal(start_pos, end_pos):
@@ -296,6 +299,7 @@ class World:
         adv_pos = self.p0_pos if self.turn else self.p1_pos
 
         # BFS
+        print(start_pos)
         state_queue = [(start_pos, 0)]
         visited = {tuple(start_pos)}
         is_reached = False
