@@ -64,7 +64,8 @@ def is_fully_expanded(self):
 
 def best_child(self, c_param=0.1):
     
-    choices_weights = [(c.q() / c.n()) + c_param * math.sqrt((2 * math.log(self.n()) / c.n())) for c in self.children]
+    # Check if the c_param is the right value
+    choices_weights = [(c.q() / c.n()) + math.sqrt((2 * math.log(self.n()) / c.n())) for c in self.children]
     return self.children[np.argmax(choices_weights)]
 
 def rollout_policy(self, possible_moves):
@@ -99,60 +100,55 @@ def best_action(self):
 #     selected_node = root.best_action()
 #     return 
 
-def check_valid_step(self, start_pos, end_pos, adv_pos, barrier_dir, chess_board, max_step):
-        """
-        Check if the step the agent takes is valid (reachable and within max steps).
-
-        Parameters
-        ----------
-        start_pos : tuple
-            The start position of the agent.
-        end_pos : np.ndarray
-            The end position of the agent.
-        barrier_dir : int
-            The direction of the barrier.
-        """
-        # Endpoint already has barrier or is boarder
+def check_valid_barrier(self, end_pos, barrier_dir):
         r, c = end_pos
-        if chess_board[r, c, barrier_dir]:
+        if self.chess_board[r, c, barrier_dir]:
             return False
-        if (start_pos==end_pos):
-            return True
+        return True
 
-        # BFS
-        state_queue = [(start_pos, 0)]
-        visited = {tuple(start_pos)}
+def get_legal_actions(self):
+        legal_actions_queue = set()
+        # Use BFS
+        state_queue = [(self.start_pos, 0)]
+        visited = {tuple(self.start_pos)}
         is_reached = False
-        while state_queue and not is_reached:
+        while state_queue:
             cur_pos, cur_step = state_queue.pop(0)
-            r, c = cur_pos
+
+            # Return if there max distance is travelled
+            if cur_step == self.max_step+1:
+                            break
+
+            # Check if the current location has valid barriers
+            for barrier_dir in range(4):
+                if (self.check_valid_barrier(cur_pos, barrier_dir)):
+                    legal_actions_queue.add((cur_pos, barrier_dir))
+
+            r, c = tuple(cur_pos)
             
-            if cur_step == max_step:
-                break
+            # Look through the paths of all possible locations (but not in the direction that they came from)
             for dir, move in enumerate(((-1, 0), (0, 1), (1, 0), (0, -1))):
-                if chess_board[r, c, dir]:
+                if self.chess_board[r, c, dir]:
                     continue
-
-                next_pos = cur_pos + move
-                if (next_pos==adv_pos).all() or tuple(next_pos) in visited:
+                a, b = move
+                next_pos = (r+a, c+b)
+                if (next_pos==self.adv_pos) or tuple(next_pos) in visited:
                     continue
-                if (next_pos==end_pos).all():
-                    is_reached = True
-                    break
-
                 visited.add(tuple(next_pos))
+                # print((next_pos, cur_step + 1))
                 state_queue.append((next_pos, cur_step + 1))
-
-        return is_reached
-
-
-def get_legal_actions(self): 
-    legal_actions_queue = [(self.start_pos, 0)]
-
+        return legal_actions_queue
 
 
 # def is_game_over(self):
 
 # def game_result(self):
 
-# def move(self,action):
+# def is_Connected(self, barrier):
+
+#     r,c = self.start_pos
+        
+#     if (r == 0):
+#         if (barrier == 1):
+#             return self.chess_board[r+1,c, 1]
+#     if

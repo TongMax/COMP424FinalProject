@@ -2,6 +2,7 @@
 from agents.agent import Agent
 from store import register_agent
 import sys
+import time
 
 
 @register_agent("human_agent")
@@ -48,45 +49,49 @@ class HumanAgent(Agent):
             x, y, dir = x.strip(), y.strip(), dir.strip()
             x, y = int(x), int(y)
         my_pos = (x, y)
-        print(self.get_legal_actions())
+        startTime = time.time()
+        x = self.get_legal_actions()
+        endTime = time.time()
+        howMuchTime = endTime - startTime
+        print(x)
+        print(len(x))
+        print(str(howMuchTime) + " sec")
         # print(self.check_valid_step((x,y), self.dir_map[dir]));
         return my_pos, self.dir_map[dir]
 
     def check_valid_input(self, x, y, dir, x_max, y_max):
         return 0 <= x < x_max and 0 <= y < y_max and dir in self.dir_map
 
-    def check_valid_step(self, end_pos):
-        """
-        Check if the step the agent takes is valid (reachable and within max steps).
+    
 
-        Parameters
-        ----------
-        start_pos : tuple
-            The start position of the agent.
-        end_pos : np.ndarray
-            The end position of the agent.
-        barrier_dir : int
-            The direction of the barrier.
-        """
-        # Endpoint already has barrier or is boarder
-        r,c = end_pos
-        if (r < 0 or c < 0):
-            return False
-        if (self.start_pos==end_pos):
+    def get_legal_actions(self):
+
+        def check_valid_barrier(end_pos, barrier_dir):
+            r, c = end_pos
+            if self.chess_board[r, c, barrier_dir]:
+                return False
             return True
 
-        # BFS
+        legal_actions_queue = set()
+        # Use BFS
         state_queue = [(self.start_pos, 0)]
         visited = {tuple(self.start_pos)}
         is_reached = False
-        while state_queue and not is_reached:
+        while state_queue:
             cur_pos, cur_step = state_queue.pop(0)
-            # print(cur_step)
-            # print("This is ", cur_pos)
+
+            # Return if there max distance is travelled
+            if cur_step == self.max_step+1:
+                            break
+
+            # Check if the current location has valid barriers
+            for barrier_dir in range(4):
+                if (check_valid_barrier(cur_pos, barrier_dir)):
+                    legal_actions_queue.add((cur_pos, barrier_dir))
+
             r, c = tuple(cur_pos)
             
-            if cur_step == self.max_step:
-                break
+            # Look through the paths of all possible locations (but not in the direction that they came from)
             for dir, move in enumerate(((-1, 0), (0, 1), (1, 0), (0, -1))):
                 if self.chess_board[r, c, dir]:
                     continue
@@ -94,36 +99,73 @@ class HumanAgent(Agent):
                 next_pos = (r+a, c+b)
                 if (next_pos==self.adv_pos) or tuple(next_pos) in visited:
                     continue
-                if (next_pos==end_pos):
-                    is_reached = True
-                    break
-
                 visited.add(tuple(next_pos))
-                print((next_pos, cur_step + 1))
+                # print((next_pos, cur_step + 1))
                 state_queue.append((next_pos, cur_step + 1))
-
-        return is_reached
-
-    def check_valid_barrier(self, end_pos, barrier_dir):
-        r, c = end_pos
-        if self.chess_board[r, c, barrier_dir]:
-            return False
-        return True
-    
-    def get_legal_actions(self): 
-        legal_actions_queue = []
-        print(self.max_step)
-        for i in range(self.max_step):
-            for j in range(i):
-                r,c = self.start_pos
-                mr = j
-                mc = i-j
-                next_pos = [(r+mr,c+mc), (r-mr,c+mc), (r+mr,c-mc), (r-mr,c-mc)]
-                print(next_pos)
-                for x in next_pos:
-                    if (self.check_valid_step(next_pos)):
-                        # Remember to change map to 0,1,2,3 for the 4 possible cardinal directions of the cell
-                        for k in range(3):
-                            if (self.check_valid_barrier(next_pos, k)):
-                                legal_actions_queue.append((next_pos, k))
         return legal_actions_queue
+
+    # def check_endgame(self):
+    #     """
+    #     Check if the game ends and compute the current score of the agents.
+
+    #     Returns
+    #     -------
+    #     is_endgame : bool
+    #         Whether the game ends.
+    #     player_1_score : int
+    #         The score of player 1.
+    #     player_2_score : int
+    #         The score of player 2.
+    #     """
+    #     # Union-Find
+    #     father = dict()
+    #     for r in range(self.board_size):
+    #         for c in range(self.board_size):
+    #             father[(r, c)] = (r, c)
+
+    #     def find(pos):
+    #         if father[pos] != pos:
+    #             father[pos] = find(father[pos])
+    #         return father[pos]
+
+    #     def union(pos1, pos2):
+    #         father[pos1] = pos2
+
+    #     for r in range(self.board_size):
+    #         for c in range(self.board_size):
+    #             for dir, move in enumerate(
+    #                 self.moves[1:3]
+    #             ):  # Only check down and right
+    #                 if self.chess_board[r, c, dir + 1]:
+    #                     continue
+    #                 pos_a = find((r, c))
+    #                 pos_b = find((r + move[0], c + move[1]))
+    #                 if pos_a != pos_b:
+    #                     union(pos_a, pos_b)
+
+    #     for r in range(self.board_size):
+    #         for c in range(self.board_size):
+    #             find((r, c))
+    #     p0_r = find(tuple(self.p0_pos))
+    #     p1_r = find(tuple(self.p1_pos))
+    #     p0_score = list(father.values()).count(p0_r)
+    #     p1_score = list(father.values()).count(p1_r)
+    #     if p0_r == p1_r:
+    #         return False, p0_score, p1_score
+    #     player_win = None
+    #     win_blocks = -1
+    #     if p0_score > p1_score:
+    #         player_win = 0
+    #         win_blocks = p0_score
+    #     elif p0_score < p1_score:
+    #         player_win = 1
+    #         win_blocks = p1_score
+    #     else:
+    #         player_win = -1  # Tie
+    #     if player_win >= 0:
+    #         # logging.info(
+    #         #     f"Game ends! Player {self.player_names[player_win]} wins having control over {win_blocks} blocks!"
+    #         # )
+    #     else:
+    #         # logging.info("Game ends! It is a Tie!")
+    #     return True, p0_score, p1_score
