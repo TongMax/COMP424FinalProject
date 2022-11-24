@@ -290,6 +290,7 @@ class World:
         # Endpoint already has barrier or is boarder
         r, c = end_pos
         # print(self.chess_board)
+        print("The length of the chess board is :", len(self.chess_board))
         # print(self.chess_board[r, c, barrier_dir])
         if self.chess_board[r, c, barrier_dir]:
             return False

@@ -105,10 +105,7 @@ def check_valid_step(self, end_pos):
 # 	grid.append(list(input().strip()))
  
 # next_move((pacman_x, pacman_y),(food_x, food_y), grid)
-
-# Game is not over, return false
             
-
 		# 	path = []
 		# 	while cur_pos.parent:
 		# 		path.append(cur_pos)

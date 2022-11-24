@@ -3,6 +3,7 @@ from agents.agent import Agent
 from store import register_agent
 import sys
 import time
+from copy import deepcopy
 
 
 @register_agent("human_agent")
@@ -50,19 +51,21 @@ class HumanAgent(Agent):
             x, y = int(x), int(y)
         my_pos = (x, y)
         startTime = time.time()
-        x = self.get_legal_actions()
+        z = self.get_legal_actions()
         endTime = time.time()
         howMuchTime = endTime - startTime
-        print(x)
-        print(len(x))
+        # print(z)
+        # print(len(z))
+        isEnd, occupied = self.is_game_over(my_pos, dir)
+        print(isEnd)
+        print(occupied)
+        print(self.game_result(occupied))
         print(str(howMuchTime) + " sec")
         # print(self.check_valid_step((x,y), self.dir_map[dir]));
         return my_pos, self.dir_map[dir]
 
     def check_valid_input(self, x, y, dir, x_max, y_max):
         return 0 <= x < x_max and 0 <= y < y_max and dir in self.dir_map
-
-    
 
     def get_legal_actions(self):
 
@@ -104,68 +107,94 @@ class HumanAgent(Agent):
                 state_queue.append((next_pos, cur_step + 1))
         return legal_actions_queue
 
-    # def check_endgame(self):
-    #     """
-    #     Check if the game ends and compute the current score of the agents.
+    def aStar(self, chess_board):
 
-    #     Returns
-    #     -------
-    #     is_endgame : bool
-    #         Whether the game ends.
-    #     player_1_score : int
-    #         The score of player 1.
-    #     player_2_score : int
-    #         The score of player 2.
-    #     """
-    #     # Union-Find
-    #     father = dict()
-    #     for r in range(self.board_size):
-    #         for c in range(self.board_size):
-    #             father[(r, c)] = (r, c)
+        def neighbours(cur_pos, end_pos, chess_board):
+            n = []
+            (r, c), g, _ = cur_pos
+            for dir, move in enumerate(((-1, 0), (0, 1), (1, 0), (0, -1))):
+                if chess_board[r, c, dir]:
+                    continue
+                a, b = move
+                next_pos = (r+a, c+b)
+                # print((next_pos, cur_step + 1))
+                n.append((next_pos, g+1, manhattan((r,c), end_pos)))
+            # print("These are the current neighbours: ",n)
+            return n
 
-    #     def find(pos):
-    #         if father[pos] != pos:
-    #             father[pos] = find(father[pos])
-    #         return father[pos]
+        def manhattan(cur_pos, end_pos):
+            cr, cc = cur_pos
+            er, ec = self.adv_pos
+            return (abs(cr - er) + abs(cc-ec))
+        
+        #The open and closed sets
+        pqueue = set()
+        closedset = set()
+        #Current point is the starting point
+        cur_pos = (self.start_pos, 0, manhattan(self.start_pos, self.adv_pos))
+        # print("This is cur: ",cur_pos)
+        #Add the starting point to the priorityQueue
+        pqueue.add(cur_pos)
+        #While the open set is not empty
+        visitedCells = 0
+        while pqueue:
+            
+            #Find the item in the open set with the lowest G + H score
+            minF = float('inf')
+            cur_pos
+            for cur in pqueue:
+                _, g, h = cur
+                if minF > g + h:
+                    cur_pos = cur
+                    minF = g + h
+            # If it is the item we want, retrace the path and return it
 
-    #     def union(pos1, pos2):
-    #         father[pos1] = pos2
+            # If goal is reached, then game has not ended and return
+            cur_coord, cur_g, cur_h = cur_pos
+            print( "This is cur: ", cur_coord)
+            if cur_coord == self.adv_pos: 
+                return False, -1
+            pqueue.remove(cur_pos) 
+            visitedCells += 1   
+            closedset.add(cur_coord)
+            #Loop through the node's children/siblings
+            for next_pos in neighbours(cur_pos, self.adv_pos, chess_board):
+                
+                (nr, nc), next_g, next_h = next_pos
+                #If it is already in the closed set, skip it
+                if (nr, nc) in closedset:
+                    continue
+                #Otherwise if it is already in the open set
+                if next_pos in pqueue:
+                    #Check if we beat the G score 
+                    
+                    new_g = cur_g + 1
+                    if next_g > new_g:
+                        #If so, update the node to have a new parent
+                        next_g = new_g
+                        # next_pos.parent = cur_pos
+                else:
+                    #If it isn't in the open set, calculate the G and H score for the node
+                    next_g = cur_g + 1
+                    next_h = manhattan((nr, nc), self.adv_pos)
+                    #Set the parent to our current item
+                    # next_pos.parent = cur_pos
+                    #Add it to the set
+                    pqueue.add(((nr, nc), next_g, next_h))
+        #return empty list, as there is not path leading to destination
+        return True, visitedCells
 
-    #     for r in range(self.board_size):
-    #         for c in range(self.board_size):
-    #             for dir, move in enumerate(
-    #                 self.moves[1:3]
-    #             ):  # Only check down and right
-    #                 if self.chess_board[r, c, dir + 1]:
-    #                     continue
-    #                 pos_a = find((r, c))
-    #                 pos_b = find((r + move[0], c + move[1]))
-    #                 if pos_a != pos_b:
-    #                     union(pos_a, pos_b)
+    def is_game_over(self, next_pos, dir):
+        r,c, = next_pos
+        chessCopy = deepcopy(self.chess_board)
+        chessCopy[r, c, self.dir_map[dir]] = True
+        return self.aStar(chessCopy)
 
-    #     for r in range(self.board_size):
-    #         for c in range(self.board_size):
-    #             find((r, c))
-    #     p0_r = find(tuple(self.p0_pos))
-    #     p1_r = find(tuple(self.p1_pos))
-    #     p0_score = list(father.values()).count(p0_r)
-    #     p1_score = list(father.values()).count(p1_r)
-    #     if p0_r == p1_r:
-    #         return False, p0_score, p1_score
-    #     player_win = None
-    #     win_blocks = -1
-    #     if p0_score > p1_score:
-    #         player_win = 0
-    #         win_blocks = p0_score
-    #     elif p0_score < p1_score:
-    #         player_win = 1
-    #         win_blocks = p1_score
-    #     else:
-    #         player_win = -1  # Tie
-    #     if player_win >= 0:
-    #         # logging.info(
-    #         #     f"Game ends! Player {self.player_names[player_win]} wins having control over {win_blocks} blocks!"
-    #         # )
-    #     else:
-    #         # logging.info("Game ends! It is a Tie!")
-    #     return True, p0_score, p1_score
+    def game_result(self, occupied):
+        board_size = len(self.chess_board)
+        if board_size*board_size - occupied > occupied:
+            return -1
+        elif board_size*board_size - occupied == occupied:
+            return 0
+        else:
+            return 1

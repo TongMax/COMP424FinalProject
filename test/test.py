@@ -44,14 +44,14 @@ def is_terminal_node(self):
 
 def rollout(self):
     current_rollout_state = self.state
-    
-    while not current_rollout_state.is_game_over():
+    isOver, occupied = current_rollout_state.is_game_over()
+    while not isOver:
         
         possible_moves = current_rollout_state.get_legal_actions()
         
         action = self.rollout_policy(possible_moves)
         current_rollout_state = current_rollout_state.move(action)
-    return current_rollout_state.game_result()
+    return current_rollout_state.game_result(occupied)
 
 def backpropagate(self, result):
     self._number_of_visits += 1.
@@ -140,7 +140,8 @@ def get_legal_actions(self):
         return legal_actions_queue
 
 
-# def is_game_over(self):
+ 
+
 
 # def game_result(self):
 
