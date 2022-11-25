@@ -80,7 +80,7 @@ class state():
         closedset = set()
         #Current point is the starting point
         c_pos = (self.cur_pos, 0, manhattan(self.cur_pos, self.adv_pos))
-        print("This is cur: ",c_pos)
+        # print("This is cur: ",c_pos)
         #Add the starting point to the priorityQueue
         pqueue.add(c_pos)
         #While the open set is not empty
@@ -194,9 +194,13 @@ class state():
         # Put Barrier
         dir = random.randint(0, 3)
         r, c = my_pos
+        l = 0
         while cur_board[r, c, dir]:
             print("broken?")
             dir = random.randint(0, 3)
+            l += 1
+            if l > 300:
+                break
         print("Current adv pos: ", (r, c))
         self.chess_board[r,c, dir] = True
         return state(self.cur_pos, my_pos, self.dir, self.chess_board, self.max_step)
@@ -235,13 +239,14 @@ class MonteCarloTreeSearchNode():
         chessCopy[r,c,dir] = True
         next_chess_board = chessCopy
         print('Function enters here: ')
-        child_node = MonteCarloTreeSearchNode(state((r,c), self.adv_pos, dir, next_chess_board, self.max_step), parent=self, parent_action=action)
+        child_node = MonteCarloTreeSearchNode(state((r,c), self.state.adv_pos, dir, next_chess_board, self.state.max_step), parent=self, parent_action=action)
 
         self.children.append(child_node)
         return child_node 
 
     def is_terminal_node(self):
-        return self.state.is_game_over()
+        is_terminal, _ = self.state.is_game_over()
+        return is_terminal
 
 
     # This default policy needs to be done iterably in one
@@ -287,16 +292,18 @@ class MonteCarloTreeSearchNode():
 
     def rollout_policy(self, possible_moves):
         # Apparently pop randomly chooses an element in sets
-        temp = possible_moves.pop()
-        possible_moves.add(temp)
-        return temp
+        cur_moves = deepcopy(possible_moves)
+        return cur_moves.pop()
 
     def _tree_policy(self):
 
         current_node = self
+        # pdb.set_trace()
         while not current_node.is_terminal_node():
+            # print("Does the current node have no more moves? ", current_node.is_fully_expanded())
             
             if not current_node.is_fully_expanded():
+                
                 return current_node.expand()
             else:
                 current_node = current_node.best_child()
@@ -309,7 +316,7 @@ class MonteCarloTreeSearchNode():
             reward = v.rollout()
             v.backpropagate(reward)
         
-        return self.best_child(c_param=0.)
+        return self.best_child(c_param=0.1)
 
 @register_agent("student_agent")
 class StudentAgent(Agent):
@@ -352,8 +359,8 @@ class StudentAgent(Agent):
         root = MonteCarloTreeSearchNode(state(self.start_pos, self.adv_pos, -1, deepcopy(self.chess_board), max_step))
         selected_node = root.best_action()
         print(selected_node)
-        next_pos = selected_node.cur_pos
-        dir = selected_node.dir
+        next_pos = selected_node.state.cur_pos
+        dir = selected_node.state.dir
 
         return next_pos, dir
 
