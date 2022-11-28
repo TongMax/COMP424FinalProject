@@ -22,16 +22,16 @@ class state():
                 return False
             return True
 
-    def get_legal_actions(self):
+    def get_legal_actions(self, c_pos, adv_pos):
             legal_actions_queue = set()
             # Use BFS
-            state_queue = [(self.cur_pos, 0)]
-            visited = {tuple(self.cur_pos)}
-            is_reached = False
+            state_queue = [(c_pos, 0)]
+            visited = {tuple(c_pos)}
+            # is_reached = False
             while state_queue:
                 cur_pos, cur_step = state_queue.pop(0)
 
-                # Return if there max distance is travelled
+                # Return if the max distance is travelled
                 if cur_step == self.max_step+1:
                                 break
 
@@ -48,14 +48,14 @@ class state():
                         continue
                     a, b = move
                     next_pos = (r+a, c+b)
-                    if (next_pos==self.adv_pos) or tuple(next_pos) in visited:
+                    if (next_pos==adv_pos) or tuple(next_pos) in visited:
                         continue
                     visited.add(tuple(next_pos))
                     # print((next_pos, cur_step + 1))
                     state_queue.append((next_pos, cur_step + 1))
             return legal_actions_queue
     
-    def aStar(self, chess_board):
+    def aStar(self, cur_pos, adv_pos, chess_board):
 
         def neighbours(cur_pos, end_pos, chess_board):
             n = []
@@ -79,7 +79,7 @@ class state():
         pqueue = set()
         closedset = set()
         #Current point is the starting point
-        c_pos = (self.cur_pos, 0, manhattan(self.cur_pos, self.adv_pos))
+        c_pos = (cur_pos, 0, manhattan(cur_pos, adv_pos))
         # print("This is cur: ",c_pos)
         #Add the starting point to the priorityQueue
         pqueue.add(c_pos)
@@ -89,7 +89,7 @@ class state():
             
             #Find the item in the open set with the lowest G + H score
             minF = float('inf')
-            c_pos
+            c_pos = None
             for cur in pqueue:
                 _, g, h = cur
                 if minF > g + h:
@@ -100,13 +100,13 @@ class state():
             # If goal is reached, then game has not ended and return
             cur_coord, cur_g, cur_h = c_pos
             # print( "This is cur: ", cur_coord)
-            if cur_coord == self.adv_pos: 
+            if cur_coord == adv_pos: 
                 return False, -1
             pqueue.remove(c_pos) 
             visitedCells += 1   
             closedset.add(cur_coord)
             #Loop through the node's children/siblings
-            for next_pos in neighbours(c_pos, self.adv_pos, chess_board):
+            for next_pos in neighbours(c_pos, adv_pos, chess_board):
                 
                 (nr, nc), next_g, next_h = next_pos
                 #If it is already in the closed set, skip it
@@ -124,7 +124,7 @@ class state():
                 else:
                     #If it isn't in the open set, calculate the G and H score for the node
                     next_g = cur_g + 1
-                    next_h = manhattan((nr, nc), self.adv_pos)
+                    next_h = manhattan((nr, nc), adv_pos)
                     #Set the parent to our current item
                     # next_pos.parent = cur_pos
                     #Add it to the set
@@ -134,19 +134,91 @@ class state():
 
     def is_game_over(self):
         # pdb.set_trace()
-        return self.aStar(self.chess_board)
+        return self.aStar(self.cur_pos, self.adv_pos, self.chess_board)
 
     def game_result(self, occupied):
-        board_size = len(self.chess_board)
-        result = -2
-        if board_size*board_size - occupied > occupied:
-            result = -1
-        elif board_size*board_size - occupied == occupied:
-            result = 0
+        # board_size = len(self.chess_board)
+        result = None
+        # Find the total space occupied by enemy
+        # pdb.set_trace()
+        _, adv_occupied = self.aStar(self.adv_pos, self.cur_pos, self.chess_board)
+        print("Score: Bot = ", occupied, " Adv = ", adv_occupied)
+        if adv_occupied > occupied:
+            return -1
+        elif adv_occupied - occupied == occupied:
+            return 0
         else:
-            result = 1
-        print("Did I win?", result)
-        return result
+            return 1
+        # print("Did I win?", result)
+        # return result
+
+    def max_pruning(self):
+        max_value = float('-inf')
+
+        result = None
+
+        isOver, occupied = self.is_game_over()
+        
+        if isOver:
+            return self.game_result(occupied), None
+        best_action = None
+        for max_action in self.get_legal_actions(self.cur_pos, self.adv_pos):
+            (pr, pc) = self.cur_pos
+            (cr, cc), dir = max_action
+            self.chess_board[cr,cc,dir] = True
+            self.cur_pos = (cr,cc)
+            min_value, min_action = self.min_pruning()
+            # Revert changes to the state
+            self.chess_board[cr,cc,dir] = False
+            self.cur_pos = (pr,pc)
+            if min_value > max_value:
+                max_value = min_value
+                best_action = max_action
+        return max_value, best_action
+
+
+
+    def min_pruning(self):
+        min_value = float('inf')
+
+        result = None
+
+        isOver, occupied = self.is_game_over()
+        
+        if isOver:
+            return self.game_result(occupied), None
+        worst_action = None
+        for min_action in self.get_legal_actions(self.adv_pos, self.cur_pos):
+            (pr, pc) = self.adv_pos
+            (cr, cc), dir = min_action
+            self.chess_board[cr,cc,dir] = True
+            self.adv_pos = (cr, cc)
+            max_value, max_action = self.max_pruning()
+            # Revert changes
+            self.chess_board[cr,cc,dir] = False
+            self.adv_pos = (pr, pc)
+            if max_value < min_value:
+                min_value = max_value
+                worst_action = min_action
+                
+        return min_value, worst_action
+
+    def simulate_random(self):
+        isOver = False
+        while not isOver:
+            isOver, occupied = self.is_game_over()
+            print("Game is over: ", isOver)
+            possible_moves = self.get_legal_actions(self.cur_pos, self.adv_pos)
+            if len(possible_moves) == 0:
+                break
+            action = self.rollout_policy(possible_moves)
+            print("This is the current action: ",action)
+            self = self.move(action)
+            isOver, occupied = self.is_game_over()
+            if isOver:
+                break
+            self = self.simulate_adv()
+        return self
 
     def move(self, action):
         (r,c), dir = action
@@ -220,7 +292,7 @@ class MonteCarloTreeSearchNode():
             return
     def untried_actions(self):
 
-        self._untried_actions = self.state.get_legal_actions()
+        self._untried_actions = self.state.get_legal_actions(self.state.cur_pos, self.state.adv_pos)
         return self._untried_actions
 
     def q(self):
@@ -251,21 +323,17 @@ class MonteCarloTreeSearchNode():
 
     # This default policy needs to be done iterably in one
     def rollout(self):
+        # Create copy of chess_board state
         current_rollout_state = deepcopy(self.state)
-        isOver = False
-        while not isOver:
-            isOver, occupied = current_rollout_state.is_game_over()
-            print("Game is over: ", isOver)
-            possible_moves = current_rollout_state.get_legal_actions()
-            if len(possible_moves) == 0:
-                break
-            action = self.rollout_policy(possible_moves)
-            print("This is the current action: ",action)
-            current_rollout_state = current_rollout_state.move(action)
-            isOver, occupied = current_rollout_state.is_game_over()
-            if isOver:
-                break
-            current_rollout_state = current_rollout_state.simulate_adv()
+        # Simulate random game
+        # end_state = current_rollout_state.simulate_random()
+        
+        # Simulate max_min game
+        value, action = current_rollout_state.max_pruning()
+        # pdb.set_trace()
+        (r,c), dir = action
+        current_rollout_state.chess_board[r,c,dir] = True
+        _, occupied = current_rollout_state.is_game_over()
         return current_rollout_state.game_result(occupied)
 
     def backpropagate(self, result):
@@ -290,10 +358,10 @@ class MonteCarloTreeSearchNode():
         #         highest = choices_weights[i]
         return self.children[np.argmax(choices_weights)]
 
-    def rollout_policy(self, possible_moves):
-        # Apparently pop randomly chooses an element in sets
-        cur_moves = deepcopy(possible_moves)
-        return cur_moves.pop()
+    # def rollout_policy(self, possible_moves):
+    #     # Apparently pop randomly chooses an element in sets
+    #     cur_moves = deepcopy(possible_moves)
+    #     return cur_moves.pop()
 
     def _tree_policy(self):
 
