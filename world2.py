@@ -50,7 +50,6 @@ class World:
             Whether the game is played in autoplay mode
         """
         # Two players
-        print(AGENT_REGISTRY)
         logger.info("Initialize the game world")
         # Load agents as defined in decorators
         self.player_1_name = player_1
@@ -291,7 +290,7 @@ class World:
         # Endpoint already has barrier or is boarder
         r, c = end_pos
         # print(self.chess_board)
-        # print("The length of the chess board is :", len(self.chess_board))
+        print("The length of the chess board is :", len(self.chess_board))
         # print(self.chess_board[r, c, barrier_dir])
         if self.chess_board[r, c, barrier_dir]:
             return False
@@ -450,6 +449,7 @@ class World:
         """
         Render the game board using the UI Engine
         """
+        self.chess_board = 
         self.ui_engine.render(self.chess_board, self.p0_pos, self.p1_pos, debug=debug)
         sleep(self.display_delay)
 

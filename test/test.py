@@ -1,3 +1,19 @@
+import time
+# Creating a set using string
+test_set = set()
+
+# Iterating using for loop
+print((2 * 8 * 10**9) // 10)
+startTime = time.time_ns()
+time.sleep(30)
+endTime = time.time_ns()
+howMuchTime = endTime - startTime
+print(str(howMuchTime) + " sec")
+
+print(str(startTime) + " sec")
+print(str(endTime) + " sec")
+
+
 # import math
 # import numpy as np
 # from copy import deepcopy

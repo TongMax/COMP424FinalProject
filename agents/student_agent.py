@@ -1,4 +1,4 @@
-# Student agent: Add your own agent here
+####################### MCTS adapted from https://ai-boson.github.io/mcts/ ##########################
 from agents.agent import Agent
 from store import register_agent
 import sys
@@ -7,6 +7,10 @@ import random as random
 import numpy as np
 from copy import deepcopy
 import pdb
+import time
+
+TWO_SEC_TIME = 1600000000
+THIRTY_SEC_TIME = 26000000000
 
 class state():
     def __init__(self, cur_pos, adv_pos, dir, chess_board, max_step):
@@ -15,10 +19,27 @@ class state():
         self.adv_pos = adv_pos
         self.dir = dir
         self.max_step = max_step
+        self.opposites = {0: 2, 1: 3, 2: 0, 3: 1}
+        self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
     
+    def set_barrier(self, r, c, dir):
+        # Set the barrier to True
+        self.chess_board[r, c, dir] = True
+        # Set the opposite barrier to True
+        move = self.moves[dir]
+        self.chess_board[r + move[0], c + move[1], self.opposites[dir]] = True
+
+    def unset_barrier(self, r, c, dir):
+        # Set the barrier to True
+        self.chess_board[r, c, dir] = False
+        # Set the opposite barrier to False
+        move = self.moves[dir]
+        self.chess_board[r + move[0], c + move[1], self.opposites[dir]] = False
+
     def check_valid_barrier(self, end_pos, barrier_dir):
             r, c = end_pos
-            if self.chess_board[r, c, barrier_dir]:
+            move = self.moves[barrier_dir]
+            if self.chess_board[r, c, barrier_dir] or self.chess_board[r + move[0], c + move[1], self.opposites[barrier_dir]]:
                 return False
             return True
 
@@ -33,7 +54,7 @@ class state():
 
                 # Return if the max distance is travelled
                 if cur_step == self.max_step+1:
-                                break
+                    break
 
                 # Check if the current location has valid barriers
                 for barrier_dir in range(4):
@@ -55,6 +76,11 @@ class state():
                     state_queue.append((next_pos, cur_step + 1))
             return legal_actions_queue
     
+    def manhattan(self, cur_pos, end_pos):
+            cr, cc = cur_pos
+            er, ec = end_pos
+            return (abs(cr - er) + abs(cc-ec))
+
     def aStar(self, cur_pos, adv_pos, chess_board):
 
         def neighbours(cur_pos, end_pos, chess_board):
@@ -66,20 +92,17 @@ class state():
                 a, b = move
                 next_pos = (r+a, c+b)
                 # print((next_pos, cur_step + 1))
-                n.append((next_pos, g+1, manhattan((r,c), end_pos)))
+                n.append((next_pos, g+1, self.manhattan((r,c), end_pos)))
             # print("These are the current neighbours: ",n)
             return n
 
-        def manhattan(cur_pos, end_pos):
-            cr, cc = cur_pos
-            er, ec = end_pos
-            return (abs(cr - er) + abs(cc-ec))
+        
         
         #The open and closed sets
         pqueue = set()
         closedset = set()
         #Current point is the starting point
-        c_pos = (cur_pos, 0, manhattan(cur_pos, adv_pos))
+        c_pos = (cur_pos, 0, self.manhattan(cur_pos, adv_pos))
         # print("This is cur: ",c_pos)
         #Add the starting point to the priorityQueue
         pqueue.add(c_pos)
@@ -124,7 +147,7 @@ class state():
                 else:
                     #If it isn't in the open set, calculate the G and H score for the node
                     next_g = cur_g + 1
-                    next_h = manhattan((nr, nc), adv_pos)
+                    next_h = self.manhattan((nr, nc), adv_pos)
                     #Set the parent to our current item
                     # next_pos.parent = cur_pos
                     #Add it to the set
@@ -133,16 +156,15 @@ class state():
         return True, visitedCells
 
     def is_game_over(self):
-        # pdb.set_trace()
+
         return self.aStar(self.cur_pos, self.adv_pos, self.chess_board)
 
     def game_result(self, occupied):
         # board_size = len(self.chess_board)
         result = None
         # Find the total space occupied by enemy
-        # pdb.set_trace()
         _, adv_occupied = self.aStar(self.adv_pos, self.cur_pos, self.chess_board)
-        print("Score: Bot = ", occupied, " Adv = ", adv_occupied)
+        # print("Score: Bot = ", occupied, " Adv = ", adv_occupied)
         if adv_occupied > occupied:
             return -1
         elif adv_occupied - occupied == occupied:
@@ -152,80 +174,149 @@ class state():
         # print("Did I win?", result)
         # return result
 
-    def max_pruning(self):
+    def max_pruning(self, alpha, beta):
         max_value = float('-inf')
-
-        result = None
+        # isFirst = True
+        # result = None
 
         isOver, occupied = self.is_game_over()
         
         if isOver:
-            return self.game_result(occupied), None
-        best_action = None
-        for max_action in self.get_legal_actions(self.cur_pos, self.adv_pos):
+            return self.game_result(occupied)
+        # best_action = None
+        legal_actions = self.get_legal_actions(self.cur_pos, self.adv_pos)
+        # print(legal_actions)
+        for max_action in legal_actions:
+            # if isFirst:
+            #     isFirst = False
+            #     best_action = max_action
             (pr, pc) = self.cur_pos
             (cr, cc), dir = max_action
-            self.chess_board[cr,cc,dir] = True
+            self.set_barrier(cr,cc,dir)
             self.cur_pos = (cr,cc)
-            min_value, min_action = self.min_pruning()
+            # pdb.set_trace()
+            min_value = self.min_pruning(alpha, beta)
             # Revert changes to the state
-            self.chess_board[cr,cc,dir] = False
+            self.unset_barrier(cr,cc,dir)
             self.cur_pos = (pr,pc)
             if min_value > max_value:
                 max_value = min_value
-                best_action = max_action
-        return max_value, best_action
+                # best_action = max_action
+
+            if max_value >= beta:
+                return(max_value)
+            if max_value < alpha:
+                alpha = max_value
+        return max_value
 
 
 
-    def min_pruning(self):
+    def min_pruning(self, alpha, beta):
         min_value = float('inf')
 
-        result = None
-
+        # result = None
+        # isFirst = True
         isOver, occupied = self.is_game_over()
         
         if isOver:
-            return self.game_result(occupied), None
-        worst_action = None
+            return self.game_result(occupied)
+        # worst_action = None
         for min_action in self.get_legal_actions(self.adv_pos, self.cur_pos):
+            # if isFirst:
+            #     isFirst = False
+            #     worst_action = min_action
             (pr, pc) = self.adv_pos
             (cr, cc), dir = min_action
-            self.chess_board[cr,cc,dir] = True
+            self.set_barrier(cr,cc,dir)
             self.adv_pos = (cr, cc)
-            max_value, max_action = self.max_pruning()
+            max_value = self.max_pruning(alpha, beta)
             # Revert changes
-            self.chess_board[cr,cc,dir] = False
+            self.unset_barrier(cr,cc,dir)
             self.adv_pos = (pr, pc)
             if max_value < min_value:
                 min_value = max_value
-                worst_action = min_action
+                # worst_action = min_action
                 
-        return min_value, worst_action
+            if min_value <= alpha:
+                return(min_value)
+            if min_value < beta:
+                beta = min_value
+        return min_value
 
-    def simulate_random(self):
+    def simulate_random(self, action):
         isOver = False
         while not isOver:
             isOver, occupied = self.is_game_over()
-            print("Game is over: ", isOver)
+
             possible_moves = self.get_legal_actions(self.cur_pos, self.adv_pos)
             if len(possible_moves) == 0:
                 break
-            action = self.rollout_policy(possible_moves)
-            print("This is the current action: ",action)
-            self = self.move(action)
+            more_than_3 = list()
+            list_actions = list(possible_moves)
+            closest_action = None
+            # pdb.set_trace()
+            closest_distance = float('inf')
+            for x in list_actions:
+                (xr, xc), x_dir = x
+
+                # Check to make sure there aren't 3 barriers
+                wall_no = 0
+                for i in range(4):
+                    self.set_barrier(xr,xc,x_dir)
+                    if (self.chess_board[xr,xc,i]):
+                        wall_no += 1
+                    self.unset_barrier(xr,xc,x_dir) 
+                if wall_no > 2:
+                    more_than_3.append(x)
+                    continue 
+                cur_manhattan = self.manhattan((xr,xc), self.adv_pos)
+                if closest_distance > cur_manhattan:
+                    closest_action = x
+                    closest_distance = cur_manhattan
+           
+            # No legal actions that are less than 3
+            if closest_action == None:
+                cur_manhattan = self.manhattan((xr, xc), self.adv_pos)
+                if closest_distance > cur_manhattan:
+                    closest_action = x
+                    closest_distance = cur_manhattan
+            # pdb.set_trace()
+            # list_actions.remove(closest_action)
+            # self._untried_actions = set(list_actions)
+            # pdb.set_trace()
+            
+
+
+            # # print("Game is over: ", isOver)
+            # possible_moves = self.get_legal_actions(self.cur_pos, self.adv_pos)
+            # if len(possible_moves) == 0:
+            #     break
+            # action = possible_moves.pop()
+            # print("This is the current action: ",action)
+            # if (closest_action == None):
+            #     z = possible_moves.pop()
+            #     print("This is the current action: ",z)
+            #     print(possible_moves)
+            #     self.move(z)
+            # print("This is the current action: ",closest_action)
+            # print(possible_moves)
+            self = self.move(closest_action)
             isOver, occupied = self.is_game_over()
             if isOver:
                 break
             self = self.simulate_adv()
-        return self
+        return self.game_result(occupied)
 
     def move(self, action):
+        
+        
+        if (action == None):
+            pdb.set_trace()
         (r,c), dir = action
-        self.chess_board[r, c, dir] = True
+        self.set_barrier(r, c, dir)
         # (ar, ac), adir = self.simulate_adv()
         # print("Current adv pos: ", (ar, ac))
-        print("Current cur pos: ", (r, c))
+        # print("Current cur pos: ", (r, c))
         # self.chess_board[ar, ac, adir] = True
         # self.adv_pos = (ar, ac)
         # self.cur_pos = (r,c)
@@ -235,57 +326,59 @@ class state():
     def simulate_adv(self):
         ori_pos = deepcopy(self.adv_pos)
         cur_board = self.chess_board
-        moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
-        steps = random.randint(0, self.max_step)
-        # temp value for final position
-        my_pos = self.adv_pos
+        legal_moves = self.get_legal_actions(ori_pos, self.cur_pos)
+        adv_action = legal_moves.pop()
+        (ar, ac), adir = adv_action
+        # moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
+        # steps = random.randint(0, self.max_step)
+        # # temp value for final position
+        # my_pos = self.adv_pos
 
-        # Random Walk
-        for _ in range(steps):
+        # # Random Walk
+        # for _ in range(steps):
             
-            r, c = self.adv_pos
-            dir = random.randint(0, 3)
-            m_r, m_c = moves[dir]
-            my_pos = (r + m_r, c + m_c)
+        #     r, c = self.adv_pos
+        #     dir = random.randint(0, 3)
+        #     m_r, m_c = moves[dir]
+        #     my_pos = (r + m_r, c + m_c)
 
-            # Special Case enclosed by Adversary
-            print("here")
-            k = 0
-            while self.chess_board[r, c, dir] or my_pos == self.adv_pos:
-                k += 1
-                if k > 300:
-                    break
-                dir = random.randint(0, 3)
-                m_r, m_c = moves[dir]
-                my_pos = (r + m_r, c + m_c)
+        #     # Special Case enclosed by Adversary
+        #     k = 0
+        #     while self.chess_board[r, c, dir] or my_pos == self.adv_pos:
+        #         k += 1
+        #         if k > 300:
+        #             break
+        #         dir = random.randint(0, 3)
+        #         m_r, m_c = moves[dir]
+        #         my_pos = (r + m_r, c + m_c)
 
-            if k > 300:
-                my_pos = ori_pos
-                break
+        #     if k > 300:
+        #         my_pos = ori_pos
+        #         break
 
-        # Put Barrier
-        dir = random.randint(0, 3)
-        r, c = my_pos
-        l = 0
-        while cur_board[r, c, dir]:
-            print("broken?")
-            dir = random.randint(0, 3)
-            l += 1
-            if l > 300:
-                break
-        print("Current adv pos: ", (r, c))
-        self.chess_board[r,c, dir] = True
-        return state(self.cur_pos, my_pos, self.dir, self.chess_board, self.max_step)
+        # # Put Barrier
+        # dir = random.randint(0, 3)
+        # r, c = my_pos
+        # l = 0
+        # while cur_board[r, c, dir]:
+        #     dir = random.randint(0, 3)
+        #     l += 1
+        #     if l > 300:
+        #         break
+        # self.set_barrier(r,c, dir)
+        return state(self.cur_pos, (ar, ac), adir, self.chess_board, self.max_step)
 
 class MonteCarloTreeSearchNode():
-    def __init__(self, state, parent=None, parent_action=None):
+    def __init__(self, state, time_limit, parent=None, parent_action=None):
             self.state = state
+            self.time_limit = time_limit
             self.parent = parent
             self.parent_action = parent_action
             self.children = []
             self._number_of_visits = 0
             self._results = dict()
             self._results[1] = 0
+            self._results[0] = 0
             self._results[-1] = 0
             self._untried_actions = None
             self._untried_actions = self.untried_actions()
@@ -297,21 +390,58 @@ class MonteCarloTreeSearchNode():
 
     def q(self):
         wins = self._results[1]
+        ties = self._results[0]
         loses = self._results[-1]
-        return wins - loses
+        return wins - loses + 0.5*ties
 
     def n(self):
         return self._number_of_visits
 
     def expand(self):
+        more_than_3 = list()
+        list_actions = list(self._untried_actions)
+        closest_action = None
+        # pdb.set_trace()
+        closest_distance = float('inf')
+        for x in list_actions:
+            (xr, xc), x_dir = x
+
+            # Check to make sure there aren't 3 barriers
+            wall_no = 0
+            for i in range(4):
+                self.state.set_barrier(xr,xc,x_dir)
+                if (self.state.chess_board[xr,xc,i]):
+                    wall_no += 1
+                self.state.unset_barrier(xr,xc,x_dir) 
+            if wall_no > 2:
+                more_than_3.append(x)
+                continue 
+
+            # Look for moves that are closer to the target
+            cur_manhattan = self.state.manhattan((xr, xc), self.state.adv_pos)
+            if closest_distance > cur_manhattan:
+                closest_action = x
+                closest_distance = cur_manhattan
         
-        action = self._untried_actions.pop()
-        (r, c), dir = action
-        chessCopy = deepcopy(self.state.chess_board)
-        chessCopy[r,c,dir] = True
-        next_chess_board = chessCopy
-        print('Function enters here: ')
-        child_node = MonteCarloTreeSearchNode(state((r,c), self.state.adv_pos, dir, next_chess_board, self.state.max_step), parent=self, parent_action=action)
+        # No legal actions that are less than 3
+        if closest_action == None:
+            cur_manhattan = self.state.manhattan((xr, xc), self.state.adv_pos)
+            if closest_distance > cur_manhattan:
+                closest_action = x
+                closest_distance = cur_manhattan
+        
+        # Update the best action
+        list_actions.remove(closest_action)
+        self._untried_actions = set(list_actions)
+        # pdb.set_trace()
+        (r, c), dir = closest_action
+        self.state.set_barrier(r,c,dir)
+        next_chess_board = deepcopy(self.state.chess_board)
+        self.state.unset_barrier(r,c,dir)
+        # next_chess_board = deepcopy(self.state.chess_board)
+        # next_chess_board.set_barrier(r,c,dir)
+        # print('Function enters here: ')
+        child_node = MonteCarloTreeSearchNode(state((r,c), self.state.adv_pos, dir, next_chess_board, self.state.max_step), self.time_limit, parent=self, parent_action=closest_action)
 
         self.children.append(child_node)
         return child_node 
@@ -328,13 +458,22 @@ class MonteCarloTreeSearchNode():
         # Simulate random game
         # end_state = current_rollout_state.simulate_random()
         
-        # Simulate max_min game
-        value, action = current_rollout_state.max_pruning()
+        # value = current_rollout_state.max_pruning()
         # pdb.set_trace()
-        (r,c), dir = action
-        current_rollout_state.chess_board[r,c,dir] = True
-        _, occupied = current_rollout_state.is_game_over()
-        return current_rollout_state.game_result(occupied)
+        # Simulate max_min game
+        # (sr,sc) = current_rollout_state.cur_pos()
+        # dir = current_rollout_state.dir()
+        # current_rollout_state.set_barrier(sr,sc,dir)
+        value = current_rollout_state.max_pruning(float('-inf'), float('inf'))
+        # if (action == None):
+        #     pdb.set_trace()
+        # current_rollout_state.unset_barrier(sr,sc,dir)
+        # (r,c), dir = action
+        # current_rollout_state.set_barrier(r,c,dir)
+        # _, occupied = current_rollout_state.is_game_over()
+        # print(value)
+        # current_rollout_state.simulate_random((current_rollout_state.cur_pos, current_rollout_state.dir))
+        return value
 
     def backpropagate(self, result):
         self._number_of_visits += 1.
@@ -348,7 +487,7 @@ class MonteCarloTreeSearchNode():
     def best_child(self, c_param=0.1):
         
         # Check if the c_param is the right value
-        choices_weights = [(c.q() / c.n()) + math.sqrt((2 * math.log(self.n()) / c.n())) for c in self.children]
+        choices_weights = [(c.q() / c.n()) + 0.1*math.sqrt((2 * math.log(self.n()) / c.n())) for c in self.children]
         # # Coding np.argmax(choices_weights)
         # index = 0
         # highest = 0
@@ -369,7 +508,7 @@ class MonteCarloTreeSearchNode():
         # pdb.set_trace()
         while not current_node.is_terminal_node():
             # print("Does the current node have no more moves? ", current_node.is_fully_expanded())
-            
+            # pdb.set_trace()
             if not current_node.is_fully_expanded():
                 
                 return current_node.expand()
@@ -378,21 +517,18 @@ class MonteCarloTreeSearchNode():
         return current_node
 
     def best_action(self):
-        simulation_no = 100
-        for i in range(simulation_no):
+        sim_no = 0
+        while time.time_ns() < self.time_limit:
+            sim_no += 1
             v = self._tree_policy()
+            # pdb.set_trace()
             reward = v.rollout()
             v.backpropagate(reward)
-        
+        print("Total simulations: ", sim_no)
         return self.best_child(c_param=0.1)
 
 @register_agent("student_agent")
 class StudentAgent(Agent):
-    """
-    A dummy class for your implementation. Feel free to use this class to
-    add any helper functionalities needed for your agent.
-    """
-
     def __init__(self):
         super(StudentAgent, self).__init__()
         self.name = "StudentAgent"
@@ -402,6 +538,8 @@ class StudentAgent(Agent):
             "d": 2,
             "l": 3,
         }
+        self.autoplay = True
+        self.is_first_round = True
 
     def step(self, chess_board, my_pos, adv_pos, max_step):
         """
@@ -424,12 +562,21 @@ class StudentAgent(Agent):
         self.max_step = max_step
         self.next_pos = my_pos
 
-        root = MonteCarloTreeSearchNode(state(self.start_pos, self.adv_pos, -1, deepcopy(self.chess_board), max_step))
-        selected_node = root.best_action()
-        print(selected_node)
+        # print(self.max_step)
+        if self.is_first_round:
+            self.is_first_round = False
+            time_limit = time.time_ns() + THIRTY_SEC_TIME
+            root = MonteCarloTreeSearchNode(state(self.start_pos, self.adv_pos, -1, deepcopy(self.chess_board), max_step), time_limit)
+            selected_node = root.best_action()
+        else:
+            time_limit = time.time_ns() + TWO_SEC_TIME
+            root = MonteCarloTreeSearchNode(state(self.start_pos, self.adv_pos, -1, deepcopy(self.chess_board), max_step), time_limit)
+            selected_node = root.best_action()
+        # print(selected_node)
         next_pos = selected_node.state.cur_pos
         dir = selected_node.state.dir
-
+        howMuchTime = selected_node.time_limit - time.time_ns()
+        print(str(howMuchTime) + " sec")
         return next_pos, dir
 
     

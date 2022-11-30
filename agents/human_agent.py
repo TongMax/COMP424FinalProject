@@ -56,7 +56,7 @@ class HumanAgent(Agent):
         zz = self.aStar(self.start_pos, self.adv_pos, self.chess_board)
         yy = self.get_legal_actions2()
         yz = self.aStar2(self.chess_board)
-        pdb.set_trace()
+        # pdb.set_trace()
         endTime = time.time()
         howMuchTime = endTime - startTime
         # # print(z)
