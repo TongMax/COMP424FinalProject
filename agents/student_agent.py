@@ -9,8 +9,8 @@ from copy import deepcopy
 import pdb
 import time
 
-TWO_SEC_TIME = 1600000000
-THIRTY_SEC_TIME = 26000000000
+TWO_SEC_TIME = 1850000000
+THIRTY_SEC_TIME = 28500000000
 
 class state():
     def __init__(self, cur_pos, adv_pos, dir, chess_board, max_step):
@@ -44,7 +44,7 @@ class state():
             return True
 
     def get_legal_actions(self, c_pos, adv_pos):
-            legal_actions_queue = set()
+            legal_actions_queue = list()
             # Use BFS
             state_queue = [(c_pos, 0)]
             visited = {tuple(c_pos)}
@@ -59,7 +59,7 @@ class state():
                 # Check if the current location has valid barriers
                 for barrier_dir in range(4):
                     if (self.check_valid_barrier(cur_pos, barrier_dir)):
-                        legal_actions_queue.add((cur_pos, barrier_dir))
+                        legal_actions_queue.append((cur_pos, barrier_dir))
 
                 r, c = tuple(cur_pos)
                 
@@ -174,8 +174,9 @@ class state():
         # print("Did I win?", result)
         # return result
 
-    def max_pruning(self, alpha, beta):
+    def max_pruning(self, alpha, beta, depth):
         max_value = float('-inf')
+        depth+=1
         # isFirst = True
         # result = None
 
@@ -195,7 +196,7 @@ class state():
             self.set_barrier(cr,cc,dir)
             self.cur_pos = (cr,cc)
             # pdb.set_trace()
-            min_value = self.min_pruning(alpha, beta)
+            min_value = self.min_pruning(alpha, beta, depth)
             # Revert changes to the state
             self.unset_barrier(cr,cc,dir)
             self.cur_pos = (pr,pc)
@@ -211,9 +212,9 @@ class state():
 
 
 
-    def min_pruning(self, alpha, beta):
+    def min_pruning(self, alpha, beta, depth):
         min_value = float('inf')
-
+        depth += 1
         # result = None
         # isFirst = True
         isOver, occupied = self.is_game_over()
@@ -221,6 +222,8 @@ class state():
         if isOver:
             return self.game_result(occupied)
         # worst_action = None
+        if depth > 2:
+            return self.simulate_random()
         for min_action in self.get_legal_actions(self.adv_pos, self.cur_pos):
             # if isFirst:
             #     isFirst = False
@@ -229,7 +232,7 @@ class state():
             (cr, cc), dir = min_action
             self.set_barrier(cr,cc,dir)
             self.adv_pos = (cr, cc)
-            max_value = self.max_pruning(alpha, beta)
+            max_value = self.max_pruning(alpha, beta, depth)
             # Revert changes
             self.unset_barrier(cr,cc,dir)
             self.adv_pos = (pr, pc)
@@ -243,20 +246,24 @@ class state():
                 beta = min_value
         return min_value
 
-    def simulate_random(self, action):
-        isOver = False
+    def simulate_random(self):
+        isOver , occupied = self.is_game_over()
         while not isOver:
+            self = self.simulate_adv()
+
             isOver, occupied = self.is_game_over()
 
+            if isOver:
+                break
             possible_moves = self.get_legal_actions(self.cur_pos, self.adv_pos)
             if len(possible_moves) == 0:
                 break
-            more_than_3 = list()
-            list_actions = list(possible_moves)
+            random.shuffle(possible_moves)
+            # 
             closest_action = None
             # pdb.set_trace()
             closest_distance = float('inf')
-            for x in list_actions:
+            for x in possible_moves:
                 (xr, xc), x_dir = x
 
                 # Check to make sure there aren't 3 barriers
@@ -267,7 +274,6 @@ class state():
                         wall_no += 1
                     self.unset_barrier(xr,xc,x_dir) 
                 if wall_no > 2:
-                    more_than_3.append(x)
                     continue 
                 cur_manhattan = self.manhattan((xr,xc), self.adv_pos)
                 if closest_distance > cur_manhattan:
@@ -276,10 +282,11 @@ class state():
            
             # No legal actions that are less than 3
             if closest_action == None:
-                cur_manhattan = self.manhattan((xr, xc), self.adv_pos)
-                if closest_distance > cur_manhattan:
-                    closest_action = x
-                    closest_distance = cur_manhattan
+                closest_action = possible_moves.pop()
+
+
+
+                    
             # pdb.set_trace()
             # list_actions.remove(closest_action)
             # self._untried_actions = set(list_actions)
@@ -302,9 +309,6 @@ class state():
             # print(possible_moves)
             self = self.move(closest_action)
             isOver, occupied = self.is_game_over()
-            if isOver:
-                break
-            self = self.simulate_adv()
         return self.game_result(occupied)
 
     def move(self, action):
@@ -327,6 +331,7 @@ class state():
         ori_pos = deepcopy(self.adv_pos)
         cur_board = self.chess_board
         legal_moves = self.get_legal_actions(ori_pos, self.cur_pos)
+        random.shuffle(legal_moves)
         adv_action = legal_moves.pop()
         (ar, ac), adir = adv_action
         # moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
@@ -399,7 +404,8 @@ class MonteCarloTreeSearchNode():
 
     def expand(self):
         more_than_3 = list()
-        list_actions = list(self._untried_actions)
+        list_actions = self._untried_actions
+        random.shuffle(list_actions)
         closest_action = None
         # pdb.set_trace()
         closest_distance = float('inf')
@@ -408,13 +414,13 @@ class MonteCarloTreeSearchNode():
 
             # Check to make sure there aren't 3 barriers
             wall_no = 0
+            self.state.set_barrier(xr,xc,x_dir)
             for i in range(4):
-                self.state.set_barrier(xr,xc,x_dir)
                 if (self.state.chess_board[xr,xc,i]):
                     wall_no += 1
-                self.state.unset_barrier(xr,xc,x_dir) 
+            self.state.unset_barrier(xr,xc,x_dir)    
             if wall_no > 2:
-                more_than_3.append(x)
+                # more_than_3.append(x)
                 continue 
 
             # Look for moves that are closer to the target
@@ -425,14 +431,22 @@ class MonteCarloTreeSearchNode():
         
         # No legal actions that are less than 3
         if closest_action == None:
-            cur_manhattan = self.state.manhattan((xr, xc), self.state.adv_pos)
-            if closest_distance > cur_manhattan:
-                closest_action = x
-                closest_distance = cur_manhattan
+            closest_action = list_actions[random.randint(0,len(list_actions)-1)]
+            # for x in more_than_3:
+            #     (xr, xc), x_dir = x
+            #     cur_manhattan = self.state.manhattan((xr, xc), self.state.adv_pos)
+            #     if closest_distance < cur_manhattan:
+            #         closest_action = x
+            #         closest_distance = cur_manhattan
         
         # Update the best action
+        # if closest_action == None:
+        #     pdb.set_trace()
+
         list_actions.remove(closest_action)
-        self._untried_actions = set(list_actions)
+        # except ValueError as err:
+        #     pdb.set_trace()
+        # self._untried_actions = set(list_actions)
         # pdb.set_trace()
         (r, c), dir = closest_action
         self.state.set_barrier(r,c,dir)
@@ -464,7 +478,7 @@ class MonteCarloTreeSearchNode():
         # (sr,sc) = current_rollout_state.cur_pos()
         # dir = current_rollout_state.dir()
         # current_rollout_state.set_barrier(sr,sc,dir)
-        value = current_rollout_state.max_pruning(float('-inf'), float('inf'))
+        value = current_rollout_state.min_pruning(float('-inf'), float('inf'), 0)
         # if (action == None):
         #     pdb.set_trace()
         # current_rollout_state.unset_barrier(sr,sc,dir)
