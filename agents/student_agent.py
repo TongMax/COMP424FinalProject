@@ -1,4 +1,5 @@
 ####################### MCTS adapted from https://ai-boson.github.io/mcts/ ##########################
+# Note, if this code doesn't work, it might be because it was built using python3 instead of python. Please try both options.
 from agents.agent import Agent
 from store import register_agent
 import sys
