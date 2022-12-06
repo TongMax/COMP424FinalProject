@@ -6,7 +6,7 @@ import math
 import random as random
 # import numpy as np
 from copy import deepcopy
-import pdb
+# import pdb
 import time
 
 TWO_SEC_TIME = 1850000000
@@ -314,9 +314,9 @@ class state():
     def move(self, action):
         
         
-        if (action == None):
-            pdb.set_trace()
-        (r,c), dir = action
+        # if (action == None):
+        #     pdb.set_trace()
+        # (r,c), dir = action
         self.set_barrier(r, c, dir)
         # (ar, ac), adir = self.simulate_adv()
         # print("Current adv pos: ", (ar, ac))
@@ -539,7 +539,7 @@ class MonteCarloTreeSearchNode():
             # pdb.set_trace()
             reward = v.rollout()
             v.backpropagate(reward)
-        print("Total simulations: ", sim_no)
+        # print("Total simulations: ", sim_no)
         return self.best_child(c_param=0.1)
 
 @register_agent("student_agent")
@@ -578,6 +578,7 @@ class StudentAgent(Agent):
         self.next_pos = my_pos
 
         # print(self.max_step)
+        # First move has 30 seconds while all consequent ones have 2 seconds; initialize root
         if self.is_first_round:
             self.is_first_round = False
             time_limit = time.time_ns() + THIRTY_SEC_TIME
