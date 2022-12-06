@@ -4,7 +4,7 @@ from store import register_agent
 import sys
 import math
 import random as random
-import numpy as np
+# import numpy as np
 from copy import deepcopy
 import pdb
 import time
@@ -502,14 +502,15 @@ class MonteCarloTreeSearchNode():
         
         # Check if the c_param is the right value
         choices_weights = [(c.q() / c.n()) + 0.1*math.sqrt((2 * math.log(self.n()) / c.n())) for c in self.children]
-        # # Coding np.argmax(choices_weights)
-        # index = 0
-        # highest = 0
-        # for i in range(len(choices_weights)):
-        #     if highest < choices_weights[i]:
-        #         index = i
-        #         highest = choices_weights[i]
-        return self.children[np.argmax(choices_weights)]
+        # Coding np.argmax(choices_weights)
+        index = 0
+        highest = 0
+        for i in range(len(choices_weights)):
+            if highest < choices_weights[i]:
+                index = i
+                highest = choices_weights[i]
+        return self.children[index]
+        # return self.children[np.argmax(choices_weights)]
 
     # def rollout_policy(self, possible_moves):
     #     # Apparently pop randomly chooses an element in sets
