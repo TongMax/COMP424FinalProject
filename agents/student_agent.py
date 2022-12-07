@@ -317,7 +317,7 @@ class state():
         
         # if (action == None):
         #     pdb.set_trace()
-        # (r,c), dir = action
+        (r,c), dir = action
         self.set_barrier(r, c, dir)
         # (ar, ac), adir = self.simulate_adv()
         # print("Current adv pos: ", (ar, ac))
